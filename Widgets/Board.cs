@@ -678,6 +678,13 @@ namespace PvZA11y.Widgets
         {
             GameMode gameMode = (GameMode)memIO.GetGameMode();
 
+            //Don't replay tutorials if a level is already in progress.
+            int boardTimer = memIO.mem.ReadInt(memIO.ptr.boardChain + ",5580");
+            int timer2 = memIO.mem.ReadInt(memIO.ptr.boardChain + ",5584");
+            if (boardTimer > 20 || timer2 > 1000000)
+                return;
+            memIO.mem.WriteMemory(memIO.ptr.boardChain + ",5584", "int", "1000001");
+
             if (gameMode is GameMode.Adventure)
             {
                 int level = memIO.GetPlayerLevel();
@@ -782,6 +789,49 @@ namespace PvZA11y.Widgets
             if (gameMode >= GameMode.SurvivalDay && gameMode <= GameMode.SurvivalEndless5)
                 return true;
             return false;
+        }
+
+        public List<int> GetAllPlantsReady()
+        {
+            List<int> readySlots = new List<int>();
+            GameMode gameMode = (GameMode)memIO.GetGameMode();
+
+            if (gameMode is GameMode.SlotMachine or GameMode.Zombiquarium or GameMode.Beghouled or GameMode.BeghouledTwist or GameMode.VaseBreakerEndless or GameMode.ItsRainingSeeds)
+                return readySlots;
+
+            if (ConveyorBeltCounter() > 0)
+                return readySlots;
+
+            if (VaseBreakerCheck())
+                return readySlots;
+
+            bool inIZombie = gameMode >= GameMode.IZombie1 && gameMode <= GameMode.IZombieEndless;
+
+            int sunAmount = memIO.mem.ReadInt(memIO.ptr.boardChain + ",5578");
+            sunAmount += animatingSunAmount;
+            var plants = GetPlantsInBoardBank();
+
+            int seedbankSize = memIO.mem.ReadInt(memIO.ptr.lawnAppPtr + ",868,15c,24") - 1;  //10 seeds have max index of 9
+            
+            for (int i =0; i < seedbankSize; i++)
+            {
+                if (plants[i].packetType < 0)
+                    continue;
+
+                int sunCost = inIZombie ? Consts.iZombieSunCosts[plants[i].packetType - 60] : Consts.plantCosts[plants[i].packetType];
+                if (plants[i].packetType == (int)SeedType.SEED_IMITATER)
+                    sunCost = Consts.plantCosts[plants[i].imitaterType];
+
+                bool notEnoughSun = sunAmount < sunCost;
+                bool refreshing = plants[i].isRefreshing;
+
+                if (notEnoughSun || refreshing)
+                    continue;
+
+                readySlots.Add(i);
+            }
+
+            return readySlots;
         }
 
         //Returns true if current plant packet is fully refreshed, and there's enough sun to place it
@@ -1153,9 +1203,9 @@ namespace PvZA11y.Widgets
                 }
 
                 if (hasCirclePortal)
-                    Text.game.hasRoundPortal.Replace("[0]", plantInfoString);
+                    plantInfoString = Text.game.hasRoundPortal.Replace("[0]", plantInfoString);
                 else if (hasSquarePortal)
-                    Text.game.hasSquarePortal.Replace("[0]", plantInfoString);
+                    plantInfoString = Text.game.hasSquarePortal.Replace("[0]", plantInfoString);
 
                 if (beepOnFound)
                 {
@@ -1310,8 +1360,16 @@ namespace PvZA11y.Widgets
             bool needToAddFireball = false;
             if (fireball.HasValue && fireball.Value.row == gridInput.cursorY)
             {
-                verboseZombieInfo = (1 + zombiesThisRow.Count).ToString() + ". ";
-                needToAddFireball = true;
+                int ballColumn = (int)((fireball.Value.x + 100.0f) / 100.0f);
+                ballColumn = ballColumn < 0 ? 0 : ballColumn;
+                ballColumn = ballColumn > 10 ? 10 : ballColumn;
+                if (currentTileOnly && ballColumn != gridInput.cursorX)
+                    ;
+                else
+                {
+                    verboseZombieInfo = (1 + zombiesThisRow.Count).ToString() + ". ";
+                    needToAddFireball = true;
+                }
             }
             else
                 verboseZombieInfo = zombiesThisRow.Count.ToString() + ". ";
@@ -1325,9 +1383,15 @@ namespace PvZA11y.Widgets
 
             List<Program.ToneProperties> tones = new List<Program.ToneProperties>();
 
+            bool fireballHack = false;
+            if(needToAddFireball && zombiesThisRow.Count == 0)
+            {
+                zombiesThisRow.Add(new Zombie());
+                fireballHack = true;
+            }
             for (int i = 0; i < zombiesThisRow.Count; i++)
             {
-                if (needToAddFireball && zombiesThisRow[i].posX > fireball.Value.x)
+                if ((needToAddFireball && zombiesThisRow[i].posX > fireball.Value.x) || fireballHack)
                 {
                     string name = fireball.Value.isIce ? Text.game.iceBall :Text.game.fireBall;
 
@@ -1345,7 +1409,14 @@ namespace PvZA11y.Widgets
                     verboseZombieInfo += name;
 
                     needToAddFireball = false;
+                    float fireballVolumeR = fireball.Value.x / 900.0f;
+                    float fireballVolumeL = 1.0f - fireballVolumeR;
+                    fireballVolumeL *= Config.current.ManualZombieSonarVolume;
+                    fireballVolumeR *= Config.current.ManualZombieSonarVolume;
+                    tones.Add(new Program.ToneProperties() { leftVolume = fireballVolumeL, rightVolume = fireballVolumeR, startFrequency = 300 + (i * 10), endFrequency = 300 + (i * 10), duration = 100, signalType = SignalGeneratorType.Sin, startDelay = (int)(fireball.Value.x /2.0f) });
                 }
+                if (fireballHack)
+                    break;
 
 
                 //For each zombie, play a sound, with a start delay relative to their distance from left to right
@@ -1384,8 +1455,9 @@ namespace PvZA11y.Widgets
             {
                 if (beepOnNone)
                 {
-                    Program.PlayTone(Config.current.ManualZombieSonarVolume, Config.current.ManualZombieSonarVolume, 200, 200, 50, SignalGeneratorType.SawTooth);
-                    Program.PlayTone(Config.current.ManualZombieSonarVolume, Config.current.ManualZombieSonarVolume, 250, 250, 50, SignalGeneratorType.SawTooth, 55);
+                    float volume = Config.current.ManualZombieSonarVolume * 0.8f;
+                    Program.PlayTone(volume,volume, 200, 200, 50, SignalGeneratorType.Sin);
+                    Program.PlayTone(volume, volume, 250, 250, 50, SignalGeneratorType.Sin, 55);
                 }
                 return null;
             }
@@ -2050,7 +2122,7 @@ namespace PvZA11y.Widgets
 
                 //If in wallnut bowling
                 bool inBowling = gameMode == GameMode.WallnutBowling || gameMode == GameMode.WallnutBowling2;
-                inBowling |= memIO.GetPlayerLevel() == 5 && ConveyorBeltCounter() > 0; //converyorBeltCounter >0, means we're passed the peashooter-shovelling part.
+                inBowling |= memIO.GetPlayerLevel() == 5 && ConveyorBeltCounter() > 0 && gameMode == GameMode.Adventure; //converyorBeltCounter >0, means we're passed the peashooter-shovelling part.
                 if (inBowling)
                 {
                     if (!doneBowlingTutorial && Config.current.GameplayTutorial && gameMode != GameMode.WallnutBowling2)
@@ -2142,8 +2214,8 @@ namespace PvZA11y.Widgets
                     if (Config.current.ZombieSonarOnRowChange > 0 && prevY != gridInput.cursorY)
                     {
                         string? zombiesThisRow = GetZombieInfo(false, (Config.current.ZombieSonarOnRowChange == 1 || Config.current.ZombieSonarOnRowChange == 2), Config.current.ZombieSonarOnRowChange == 1 || Config.current.ZombieSonarOnRowChange == 2, Config.current.ZombieSonarOnRowChange == 1, Config.current.ZombieSonarOnRowChange == 3);
-                        if (zombiesThisRow == null)
-                            zombiesThisRow = Text.game.noZombies;
+                        //if (zombiesThisRow == null)
+                          //  zombiesThisRow = Text.game.noZombies;
 
                         if (Config.current.ZombieSonarOnRowChange == 1 || Config.current.ZombieSonarOnRowChange == 3)
                             totalTileInfoStr += " " + zombiesThisRow;
@@ -2541,8 +2613,10 @@ namespace PvZA11y.Widgets
                 }
                 else if (inWhackAZombie)
                     PlacePlant(seedbankSlot, seedbankSize, plants[seedbankSlot].offsetX, false, false, false);
-                else if (inRainingSeeds || inVaseBreaker || inSlotMachine)
+                else if (inRainingSeeds || inVaseBreaker)
                     ShovelPlant(5);
+                else if (inSlotMachine)
+                    ShovelPlant(8);
                 else if (Config.current.RequireShovelConfirmation)
                 {
                     if (shovelPressedLast)

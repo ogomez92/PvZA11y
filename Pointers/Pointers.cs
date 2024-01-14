@@ -80,6 +80,9 @@ namespace PvZA11y
         public string dialogBodyLenOffset = ",104";
         public string dialogBodyStrOffset = ",f4";
 
+        public string userPickerRenameOffset = ",190";
+        public string userPickerDeleteOffset = ",194";
+
         public string optionsMenuContinueOffset = ",190"; //optionsMenu[,returnButton]
         public string optionsMenuRestartOffset = ",18c"; //optionsMenu[,RestartLevelButton]
         public string optionsMenuReturnToMainOffset = ",188"; //optionsMenu[,MainMenuButton]
@@ -166,6 +169,10 @@ namespace PvZA11y
         public string keyboardInputDisable3 = "83 ?? ?? ?? 00 00 02 75 ?? 8b ?? ?? ?? 00 00 83 ?? 2b";
         public string keyboardInputDisable3Patched = "5f 5e c2 04 00 90 90 75 ?? 8b ?? ?? ?? 00 00 83 ?? 2b";
 
+
+        //Disable space/enter key when on award/help screen
+        public string keyboardInputDisable4 = "8A 44 24 04 3c 20 74 08 3c 0d 74 04 3c 1b 75 09 89 4c 24 04 e9 ?? ?? ?? ?? c2 04 00";
+        public string keyboardInputDisable4Patched = "c2 04 00 04 3c 20 74 08 3c 0d 74 04 3c 1b 75 09 89 4c 24 04 e9 ?? ?? ?? ?? c2 04 00";
 
         //Patch to allow music track synchronisation while in freeze mode
         public string musicPausePatch = "75 ?? e8 ?? ?? ?? ?? 8b ?? ?? 83 ?? ?? 74 ?? 8b ?? ?? 83 ?? ?? 74 ?? 50";

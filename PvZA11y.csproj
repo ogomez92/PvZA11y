@@ -93,6 +93,9 @@
 	  <None Update="Language\English\PlantTooltips.yaml">
 	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 	  </None>
+	  <None Update="Language\English\RebindMenu.yaml">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
 	  <None Update="Language\English\Store.yaml">
 	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 	  </None>
@@ -110,6 +113,11 @@
 	  </None>
 	  <None Update="Language\English\ZombieNames.yaml">
 	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="PvZA11y-Updater.exe">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	  <None Update="Readme.md">
 	  </None>
 	  <None Update="readme.txt">
 	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>

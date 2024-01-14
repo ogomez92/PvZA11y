@@ -334,6 +334,7 @@ namespace PvZA11y
                 public string AutomaticZombieSonarVolume;
                 public string ManualZombieSonarVolume;
                 public string PlantReadyCueVolume;
+                public string BackgroundPlantReadyCueVolume;
                 public string FoundObjectCueVolume;
                 public string FastZombieCueVolume;
                 public string DeadZombieCueVolume;
@@ -385,6 +386,7 @@ namespace PvZA11y
                 public string AutomaticZombieSonarVolume;
                 public string ManualZombieSonarVolume;
                 public string PlantReadyCueVolume;
+                public string BackgroundPlantReadyCueVolume;
                 public string FoundObjectCueVolume;
                 public string FastZombieCueVolume;
                 public string DeadZombieCueVolume;
@@ -418,6 +420,78 @@ namespace PvZA11y
             }
         }
 
+        public static InputRebind inputRebind = new InputRebind();
+
+        public class InputRebind
+        {
+            public InputNames inputNames = new InputNames();
+            public InputDescriptions inputDescriptions = new InputDescriptions();
+            public class InputNames
+            {
+                public string up;
+                public string down;
+                public string left;
+                public string right;
+                public string confirm;
+                public string deny;
+                public string start;
+                public string option;
+                public string cycleLeft;
+                public string cycleRight;
+                public string zombieMinus;
+                public string zombiePlus;
+                public string info1;
+                public string info2;
+                public string info3;
+                public string info4;
+                public string slot;
+            }
+
+            public class InputDescriptions
+            {
+                public string up;
+                public string down;
+                public string left;
+                public string right;
+                public string confirm;
+                public string deny;
+                public string start;
+                public string option;
+                public string cycleLeft;
+                public string cycleRight;
+                public string zombieMinus;
+                public string zombiePlus;
+                public string info1;
+                public string info2;
+                public string info3;
+                public string info4;
+                public string slot;
+            }
+
+            public string resetKeyboard;
+            public string resetController;
+            public string setKeyboard;
+            public string setController;
+            public string keyboardReset;
+            public string controllerReset;
+            public string rebindComplete;
+            public string pressKeyboard;
+            public string pressController;
+            public string pressKeyboardOrController;
+            public string keyAlreadyBound;
+            public string buttonAlreadyBound;
+            public string keyUnbound;
+            public string buttonUnbound;
+            public string inputBound;
+            public string keyboardBind;
+            public string controllerBind;
+            public string controllerExtraBind;
+            public string leftStick;
+            public string rightStick;
+            public string leftTrigger;
+            public string rightTrigger;
+            public string unknownKey;
+        }
         public static Inputs inputs = new Inputs();
         public class Inputs
         {
@@ -434,6 +508,7 @@ namespace PvZA11y
             public string almanacGrid;
             public string achievements;
             public string accessibility;
+            public string rebindMenu;
         }
 
         public static Awards awards = new Awards();
@@ -576,6 +651,8 @@ namespace PvZA11y
             public string zombiquariumGoal;
             public string coinCount;
             public string sunCount;
+            public string tripwire1;
+            public string tripwire2;
         }
 
         public static Almanac almanac = new Almanac();
@@ -616,6 +693,7 @@ namespace PvZA11y
                 Awards newAwards = deserializer.Deserialize<Awards>(File.ReadAllText(langDir + "\\" + langName + "\\Awards.yaml"));
                 Menus newMenus = deserializer.Deserialize<Menus>(File.ReadAllText(langDir + "\\" + langName + "\\Menus.yaml"));
                 Almanac newAlmanac = deserializer.Deserialize<Almanac>(File.ReadAllText(langDir + "\\" + langName + "\\Almanac.yaml"));
+                InputRebind newRebind = deserializer.Deserialize<InputRebind>(File.ReadAllText(langDir + "\\" + langName + "\\RebindMenu.yaml"));
 
                 //int codepage = 437; //EN-US
                 Encoding newEncoding = Encoding.UTF8;
@@ -653,6 +731,7 @@ namespace PvZA11y
                 awards = newAwards;
                 menus = newMenus;
                 almanac = newAlmanac;
+                inputRebind = newRebind;
                 Program.encoding = newEncoding;
                 Console.WriteLine("Language '{0}' loaded successfully!", langName);
                 Config.current.LanguageID = K4os.Hash.xxHash.XXH32.DigestOf(Encoding.Unicode.GetBytes(langName));
@@ -746,6 +825,7 @@ namespace PvZA11y
             //File.WriteAllText("Language\\English\\Game.yaml", serializer.Serialize(game), Encoding.Unicode);
             //File.WriteAllText("Language\\English\\ZenGarden.yaml", serializer.Serialize(zenGarden), Encoding.Unicode);
             //File.WriteAllText("Language\\English\\Inputs.yaml", serializer.Serialize(inputs), Encoding.Unicode);
+            //File.WriteAllText("Language\\English\\RebindMenu.yaml", serializer.Serialize(inputRebind), Encoding.Unicode);
             //File.WriteAllText("Language\\English\\Awards.yaml", serializer.Serialize(awards), Encoding.Unicode);
             //File.WriteAllText("Language\\English\\Menus.yaml", serializer.Serialize(menus), Encoding.Unicode);
             //File.WriteAllText("Language\\English\\Almanac.yaml", serializer.Serialize(almanac), Encoding.Unicode);

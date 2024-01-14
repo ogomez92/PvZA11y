@@ -14,7 +14,7 @@ using PvZA11y.Widgets;
 using NAudio.Mixer;
 
 /*
-[PVZ-A11y Beta 1.16]
+[PVZ-A11y Beta 1.16.1]
 
 Blind and motor accessibility mod for Plants Vs Zombies.
 Allows input with rebindable keys and controller buttons, rather than requiring a mouse for input.
@@ -32,15 +32,6 @@ Works by using pointerchains to find values in memory.
 Sends mouse movement and click events to the game process, to simulate input.
 
 Todo:
-    Imitater support in plant picker
-    Ensure feature-parity across game versions
-    Level progress for all minigame/puzzle modes
-    Make all minigames blind-accessible. Some will be easy (Seeing Stars), but some will take a lot of work to before they can be not just played, but enjoyed, by blind gamers.
-    Fix bug that causes tutorial messages to be played more than once (also happens when resuming an in-progress game on a level with a tutorial)
-    Make dropped seed packets more acccessible, for modes like vasebreaker (don't instantly grab them, maybe move them to top of screen, and cycle similarly to normal plant deck)
-    Allow plants to be placed in whack-a-zombie (cherry bomb, gravebuster, ice shroom)
-    Calculate scaled plant-upgrade prices in 'Last Stand' minigame (plant upgrade prices increase as you use them)
-        Inform player that sun plants aren't allowed on 'Last Stand' minigame
     Move all pointers/offsets/struct-sizes into pointers.cs
     Move all memory interaction operations into memoryIO.cs
     General code cleanup (so much dead code, things where they shouldn't be, etc)
@@ -60,14 +51,10 @@ Discussions:
         We could offer an option for information brevity. With short nicknames for each plant/zombie (Peashooter > pea, Magnet-Shroom > Mag, Screen Door > Door)
         Could disable the delay in the zombie sonar, and just use panning.
         Could implement pitch to indicate zombie threat (health/armor, speed, digger, pole-vaulter pre-jump, etc..)
-        Could change grid tone type (sine/square), to indicate if tile is empty or occupied.
-        Could have a whole-grid zombie-sonar, rather than per-row, to get a quick/rough idea of where each zombie is.
         Could have a plant-column checker, to indicate how many empty/plantable tiles are in the current column (useful for detecting if a plant has been eaten, or if you missed a spot)
         Could add a screen reader cue when a plant is eaten (eg; "E-4 Peashooter Eaten").
-    
 
 The memory.dll library could use some enhancements, but it's workable for now.
-
 
 */
 
@@ -758,6 +745,11 @@ namespace PvZA11y
                     Say(splitLines[currentLine]);
                 }
                 intent = input.GetCurrentIntent();
+
+                bool gameClosed = false;
+                try { gameClosed = memIO.mem.mProc.Process.HasExited; } catch { }
+                if (gameClosed)
+                    Environment.Exit(0);
             }
             memIO.SetBoardPaused(false);
         }
@@ -1022,28 +1014,30 @@ namespace PvZA11y
 
                 if (Config.current.SayCoinValueOnCollect)
                 {
-                    string sayStr = "";
+                    string sayStr = Text.game.coinCount;
+                    int count = 0;
                     switch ((CoinType)coinType)
                     {
                         case CoinType.Silver:
-                            sayStr = "10 coins!";
+                            count = 10;
                             break;
                         case CoinType.Gold:
-                            sayStr = "50 coins!";
+                            count = 50;
                             break;
                         case CoinType.Diamond:
-                            sayStr = "1,000 coins!";
+                            count = 1000;
                             break;
                         case CoinType.AwardMoneyBag:
-                            sayStr = "250 coins!";
+                            count = 250;
                             break;
                         case CoinType.AwardBagDiamond:
-                            sayStr = "3,000 coins!";
+                            count = 3000;
                             break;
                     }
 
-                    if (sayStr.Length > 0)
-                    {
+                    if(count != 0)
+                    { 
+                        sayStr = sayStr.Replace("[0]", FormatNumber(count));
                         Console.WriteLine(sayStr);
                         Say(sayStr);
                     }
@@ -1270,7 +1264,7 @@ namespace PvZA11y
 
             //options menu has mID of 2? || widget.type == (uint)WidgetType.Options
             //Check if plantPicker
-            bool wallnutBowling = (memIO.GetPlayerLevel() == 5) && memIO.GetGameScene() == (int)GameScene.SeedPicker;
+            bool wallnutBowling = (memIO.GetPlayerLevel() == 5) && memIO.GetGameScene() == (int)GameScene.SeedPicker && gameMode == (int)GameMode.Adventure;
 
             //Sometimes seed picker isn't the active widget, despite it being the focal point
             //Eg if you open the pause menu on the seed picker, and unpause again, the board will become the active widget :(
@@ -1756,8 +1750,8 @@ namespace PvZA11y
                 tripwireAlarmState = 1;
                 if (Config.current.SayWhenTripwireCrossed)
                 {
-                    Console.WriteLine("Tripwire triggered!");
-                    Say("Tripwire triggered!");
+                    Console.WriteLine(Text.game.tripwire1);
+                    Say(Text.game.tripwire1);
                 }
             }
             if (tripwireAlarmState <= 1 && intense)
@@ -1765,8 +1759,8 @@ namespace PvZA11y
                 tripwireAlarmState = 2;
                 if (Config.current.SayWhenTripwireCrossed)
                 {
-                    Console.WriteLine("ALERT! Multiple tripwires triggered!");
-                    Say("ALERT! Multiple tripwires triggered!");
+                    Console.WriteLine(Text.game.tripwire2);
+                    Say(Text.game.tripwire2);
                 }
             }
 
@@ -1889,6 +1883,7 @@ namespace PvZA11y
             long lastSweep = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             long nextFloatingPacketUpdate = 0;  //When to scan for floating seed packets (need to delay, to avoid slowing the game)
             int prevSunAmount = 0;
+            List<int> prevReadyPlants = new List<int>();
             while (true)
             {
                 //Ensure window/draw specs, and hwnd are accurate
@@ -1908,7 +1903,7 @@ namespace PvZA11y
 
                 currentWidget = GetActiveWidget(currentWidget);
 
-                bool inVaseBreaker = VaseBreakerCheck(); //GetPlayerLevel() == 35 || (gameMode >= (int)GameMode.SCARY_POTTER_1 && gameMode <= (int)GameMode.SCARY_POTTER_ENDLESS);
+                bool inVaseBreaker = VaseBreakerCheck();
 
                 bool onBoard = mem.ReadUInt(memIO.ptr.boardChain) != 0;
 
@@ -1976,6 +1971,7 @@ namespace PvZA11y
                 int fastZombieRow = 0;
                 float gridHeight = 1;
                 int newSunAmount = 0;
+                List<int>? newPlantsReady = new List<int>();
                 if (currentWidget is Board)
                 {
                     if(nextFloatingPacketUpdate <= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
@@ -1991,7 +1987,7 @@ namespace PvZA11y
                     newSunAmount = ((Board)currentWidget).GetTotalSun();
                     if (newSunAmount > prevSunAmount && Config.current.SaySunCountOnCollect)
                     {
-                        string sunString = FormatNumber(newSunAmount) + " Sun!";
+                        string sunString = Text.game.sunCount.Replace("[0]", FormatNumber(newSunAmount));
                         Console.WriteLine(sunString);
                         Say(sunString);
                     }
@@ -2001,6 +1997,7 @@ namespace PvZA11y
                     if (((Board)currentWidget).seedbankSlot != prevSeedbankSlot)
                         packetWasReady = false;
 
+                    newPlantsReady = ((Board)currentWidget).GetAllPlantsReady();
                     prevSeedbankSlot = ((Board)currentWidget).seedbankSlot;
                     if(Config.current.DeadZombieCueVolume > 0)
                     {
@@ -2123,6 +2120,36 @@ namespace PvZA11y
                     PlayTones(tones);
                 }
 
+                if (newPlantsReady.Count > 0 && Config.current.BackgroundPlantReadyCueVolume > 0)
+                {
+                    List<ToneProperties> tones = new List<ToneProperties>();
+                    int extraDelay = 0;
+                    for (int i = 0; i < newPlantsReady.Count; i++)
+                    {
+                        if (prevReadyPlants.Contains(newPlantsReady[i]))
+                            continue;
+
+                        //Don't play tone for current plant
+                        if (((Board)currentWidget).seedbankSlot == newPlantsReady[i])
+                            continue;
+
+                        float rVolume = newPlantsReady[i] / 10.0f;
+                        float lVolume = 1.0f - rVolume;
+                        rVolume *= Config.current.BackgroundPlantReadyCueVolume;
+                        lVolume *= Config.current.BackgroundPlantReadyCueVolume;
+
+                        float freq1 = 200.0f + (50.0f * newPlantsReady[i]);
+                        float freq2 = freq1 * 1.25f;
+                        float freq3 = freq1 * 1.5f;
+
+                        tones.Add(new ToneProperties() { leftVolume = lVolume, rightVolume = rVolume, startFrequency = freq1, endFrequency = freq1, duration = 190, signalType = SignalGeneratorType.Sin, startDelay = extraDelay + 40 });
+                        tones.Add(new ToneProperties() { leftVolume = lVolume, rightVolume = rVolume, startFrequency = freq2, endFrequency = freq2, duration = 170, signalType = SignalGeneratorType.Sin, startDelay = extraDelay + 20 });
+                        tones.Add(new ToneProperties() { leftVolume = lVolume, rightVolume = rVolume, startFrequency = freq3, endFrequency = freq3, duration = 150, signalType = SignalGeneratorType.Sin, startDelay = extraDelay });
+                        extraDelay += 100;
+                    }
+                    PlayTones(tones);
+                    prevReadyPlants = newPlantsReady;
+                }
                 packetWasReady = plantPacketReady;
 
                 DoWidgetInteractions(currentWidget, input);
